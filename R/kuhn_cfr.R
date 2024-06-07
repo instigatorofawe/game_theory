@@ -1,96 +1,67 @@
+rm(list=ls())
+
+library(tidyverse)
 library(magrittr)
 
 source("R/regret_match.R")
 
-regrets_root = array(0, c(3, 2)) # (J, Q, K) x  (b, x)
-regrets_b = array(0, c(3, 2)) # (J, Q, K) x  (c, f)
-regrets_x = array(0, c(3, 2)) # (J, Q, K) x  (b, x)
-regrets_x_b = array(0, c(3, 2)) # (J, Q, K) x  (c, f)
+states = c("KQ", "QK", "KJ", "JK", "QJ", "JQ")
+infosets_p1 = lapply(c("J", "Q", "K"), function(x) which(str_sub(states, 1, 1) == x))
+infosets_p2 = lapply(c("J", "Q", "K"), function(x) which(str_sub(states, 2, 2) == x))
 
-payout_b_c = array(c(0, 2, 2, -2, 0, 2, -2, -2, 0), c(3,3))
-payout_b_f = array(-1, c(3,3))
-payout_x_x = array(c(0, 1, 1, -1, 0, 1, -1, -1, 0), c(3,3))
+regrets_root = array(0, c(2, 3)) 
+regrets_b = array(0, c(2, 3)) 
+regrets_x = array(0, c(2, 3)) # (J, Q, K) x  (b, x)
+regrets_x_b = array(0, c(2, 3)) # (J, Q, K) x  (c, f)
 
-for (i in seq_len(1e3)) {
+payouts_b_c = c(2, -2, 2, -2, 2, -2)
+payouts_b_f = c(1, 1, 1, 1, 1, 1)
+payouts_x_x = c(1, -1, 1, -1, 1, -1)
+
+expand_strategy = function(strategy, infoset) {
+    result = array(dim=c(dim(strategy)[1], length(states)))
+    for (j in seq_along(infoset)) {
+        result[,infoset[[j]]] = strategy[,j]
+    }
+    return(result)
+}
+
+sum_regrets = function(regrets, infoset) {
+    result = array(dim=c(dim(regrets)[1], length(infoset)))
+    for (j in seq_along(infoset)) {
+        result[,j] = rowSums(regrets[,infoset[[j]]])
+    }
+    return(result)
+}
+
+for (i in seq_len(1e2)) {
     # Compute strategy profiles
-    strategy_root = apply(regrets_root, 1, regret_match) %>% t
-    strategy_b = apply(regrets_b, 1, regret_match) %>% t
-    strategy_x = apply(regrets_x, 1, regret_match) %>% t
-    strategy_x_b = apply(regrets_x_b, 1, regret_match) %>% t
+    strategy_root = apply(regrets_root %>% t, 1, regret_match) %>% expand_strategy(infosets_p1)
+    strategy_b = apply(regrets_b %>% t, 1, regret_match) %>% expand_strategy(infosets_p2)
+    strategy_x = apply(regrets_x %>% t, 1, regret_match) %>% expand_strategy(infosets_p2)
+    strategy_x_b = apply(regrets_x_b %>% t, 1, regret_match) %>% expand_strategy(infosets_p1)
     
-    # Compute beliefs for each player for each information set at each node
-    beliefs_root_p1 = array(c(0,0.5,0.5,0.5,0,0.5,0.5,0.5,0), c(3,3))
-    beliefs_root_p2 = beliefs_root_p1
+    # Compute probability of being in each node, given initial state
+    p_b = strategy_root[1,]
+    p_b_c = strategy_root[1,] * strategy_b[1,]
+    p_b_f = strategy_root[1,] * strategy_b[2,]
     
-    beliefs_b_p1 = apply(beliefs_root_p1, 1, function(x) (x*strategy_root[,1])/sum(x*strategy_root[,1])) %>% t
-    beliefs_b_p1[is.na(beliefs_b_p1)] = 0
-    beliefs_b_p2 = beliefs_root_p2
+    # Compute EV from terminal nodes
+    ev_b = p_b_c * payouts_b_c + p_b_f * payouts_b_f
+    regrets_b = regrets_b -(rbind(p_b * payouts_b_c - ev_b, p_b * payouts_b_f - ev_b) %>% sum_regrets(infosets_p2))
     
-    beliefs_b_c_p1 = beliefs_b_p1
-    beliefs_b_c_p2 = apply(beliefs_b_p2, 1, function(x) (x*strategy_b[,1])/sum(x*strategy_b[,1])) %>% t
-    beliefs_b_c_p2[is.na(beliefs_b_c_p2)] = 0
+    p_x = strategy_root[2,]
+    p_x_b = strategy_root[2,] * strategy_x[1,]
+    p_x_b_c = strategy_root[2,] * strategy_x[1,] * strategy_x_b[1,]
+    p_x_b_f = strategy_root[2,] * strategy_x[1,] * strategy_x_b[2,]
     
-    beliefs_b_f_p1 = beliefs_b_p1
-    beliefs_b_f_p2 = apply(beliefs_b_p2, 1, function(x) (x*strategy_b[,2])/sum(x*strategy_b[,2])) %>% t
-    beliefs_b_f_p2[is.na(beliefs_b_f_p2)] = 0
+    ev_x_b = p_x_b_c * payouts_b_c + p_x_b_f * payouts_b_f
+    regrets_x_b = regrets_x_b + (rbind(p_x_b * payouts_b_c - ev_x_b, p_x_b * payouts_b_f - ev_x_b) %>% sum_regrets(infosets_p1))
     
-    beliefs_x_p1 = apply(beliefs_root_p1, 1, function(x) (x*strategy_root[,2])/sum(x*strategy_root[,2])) %>% t
-    beliefs_x_p1[is.na(beliefs_x_p1)] = 0
-    beliefs_x_p2 = beliefs_root_p2
+    p_x_x = strategy_root[2,] * strategy_x[2,]
+    ev_x = p_x_b * ev_x_b +  p_x_x * payouts_x_x
+    regrets_x = regrets_x -(rbind(p_x * ev_x_b - ev_x, p_x * payouts_x_x - ev_x) %>% sum_regrets(infosets_p2))
     
-    beliefs_x_x_p1 = beliefs_x_p1
-    beliefs_x_x_p2 = apply(beliefs_x_p2, 1, function(x) (x*strategy_x[,2])/sum(x*strategy_x[,2])) %>% t
-    beliefs_x_x_p2[is.na(beliefs_x_x_p2)] = 0
-    
-    beliefs_x_b_p1 = beliefs_x_p1
-    beliefs_x_b_p2 = apply(beliefs_x_p2, 1, function(x) (x*strategy_x[,1])/sum(x*strategy_x[,1])) %>% t
-    beliefs_x_b_p2[is.na(beliefs_x_b_p2)] = 0
-    
-    beliefs_x_b_c_p1 = apply(beliefs_x_b_p1, 1, function(x) (x * strategy_x_b[,1]) / sum(x*strategy_x_b[,1])) %>% t
-    beliefs_x_b_c_p1[is.na(beliefs_x_b_c_p1)] = 0
-    beliefs_x_b_c_p2 = beliefs_x_b_p2
-    
-    beliefs_x_b_f_p1 = apply(beliefs_x_b_p1, 1, function(x) (x * strategy_x_b[,2]) / sum(x*strategy_x_b[,2])) %>% t
-    beliefs_x_b_f_p1[is.na(beliefs_x_b_f_p1)] = 0
-    beliefs_x_b_f_p2 = beliefs_x_b_p2
-    
-    # Compute EV for each player for each information set at each node, beginning with terminal nodes
-    ev_x_b_c_p1 = rowSums(payout_b_c * beliefs_x_b_c_p2)
-    ev_x_b_c_p2 = rowSums(payout_b_c * beliefs_x_b_c_p1)
-    
-    ev_x_b_f_p1 = rowSums(payout_b_f * beliefs_x_b_p2)
-    ev_x_b_f_p2 = rowSums(-payout_b_f * beliefs_x_b_p1)
-    
-    ev_x_b_p1 = rowSums(cbind(ev_x_b_c_p1, ev_x_b_f_p1) * strategy_x_b)
-    ev_x_b_p2 = rowSums(cbind(ev_x_b_c_p2, ev_x_b_f_p2) * strategy_x_b)
-    
-    regrets_x_b = regrets_x_b - ev_x_b_p1 + cbind(ev_x_b_c_p1, ev_x_b_f_p1)
-    regrets_x_b[regrets_x_b<0] = 0 
-    
-    ev_x_x_p1 = rowSums(payout_x_x * beliefs_x_x_p2)
-    ev_x_x_p2 = rowSums(payout_x_x * beliefs_x_x_p1)
-    
-    ev_x_p1 = rowSums(cbind(ev_x_b_p1, ev_x_x_p1) * strategy_x)
-    ev_x_p2 = rowSums(cbind(ev_x_b_p2, ev_x_x_p2) * strategy_x)
-    
-    regrets_x = regrets_x - ev_x_p2 + cbind(ev_x_b_p2, ev_x_x_p2)
-    regrets_x[regrets_x<0] = 0
-    
-    ev_b_c_p1 = rowSums(payout_b_c * beliefs_b_c_p2)
-    ev_b_c_p2 = rowSums(payout_b_c * beliefs_b_c_p1)
-    
-    ev_b_f_p1 = rowSums(-payout_b_f * beliefs_b_p2)
-    ev_b_f_p2 = rowSums(payout_b_f * beliefs_b_p1)
-    
-    ev_b_p1 = rowSums(cbind(ev_b_c_p1, ev_b_f_p1) * strategy_b)
-    ev_b_p2 = rowSums(cbind(ev_b_c_p2, ev_b_f_p2) * strategy_b)
-    
-    regrets_b = regrets_b - ev_b_p2 + cbind(ev_b_c_p2, ev_b_f_p2)
-    regrets_b[regrets_b<0] = 0
-    
-    ev_root_p1 = rowSums(cbind(ev_b_p1, ev_x_p1) * strategy_root)
-    ev_root_p2 = rowSums(cbind(ev_b_p2, ev_x_p2) * strategy_root)
-    
-    regrets_root = regrets_root - ev_root_p1 + cbind(ev_b_p1, ev_x_p1)
-    regrets_root[regrets_root<0] = 0
+    ev_root = p_b * ev_b + p_x * ev_x
+    regrets_root = regrets_root + (rbind(ev_b - ev_root, ev_x - ev_root) %>% sum_regrets(infosets_p1))
 }

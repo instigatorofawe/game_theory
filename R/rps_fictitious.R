@@ -1,6 +1,6 @@
 library(magrittr)
 
-payouts = array(c(0.5, 2, 0, 0, 0.5, 1, 1, 0, 0.5), dim = c(3,3))
+payouts = array(c(0.5, 1.1, 0, 0, 0.5, 1, 1, 0, 0.5), dim = c(3,3))
 colnames(payouts) = c("Rock", "Paper", "Scissors")
 rownames(payouts) = c("Rock", "Paper", "Scissors")
 

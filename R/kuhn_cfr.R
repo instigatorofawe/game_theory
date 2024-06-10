@@ -34,34 +34,125 @@ sum_regrets = function(regrets, infoset) {
     return(result)
 }
 
-for (i in seq_len(1e2)) {
-    # Compute strategy profiles
-    strategy_root = apply(regrets_root %>% t, 1, regret_match) %>% expand_strategy(infosets_p1)
-    strategy_b = apply(regrets_b %>% t, 1, regret_match) %>% expand_strategy(infosets_p2)
-    strategy_x = apply(regrets_x %>% t, 1, regret_match) %>% expand_strategy(infosets_p2)
-    strategy_x_b = apply(regrets_x_b %>% t, 1, regret_match) %>% expand_strategy(infosets_p1)
+map_infosets = function(x, infoset, f) {
+    sapply(seq_along(infoset), function(j) {
+        f(x[infoset[[j]]])
+    })
+}
+
+
+strategy_root = apply(regrets_root %>% t, 1, regret_match) 
+strategy_b = apply(regrets_b %>% t, 1, regret_match) 
+strategy_x = apply(regrets_x %>% t, 1, regret_match)
+strategy_x_b = apply(regrets_x_b %>% t, 1, regret_match) 
+
+average_strategy_root = strategy_root
+average_strategy_b = strategy_b
+average_strategy_x = strategy_x
+average_strategy_x_b = strategy_x_b
+
+total_p_root = rep(1/3, 3)
+total_p_b = rep(1/6, 3)
+total_p_x = rep(1/6, 3)
+total_p_x_b = rep(1/12, 3)
+
+for (i in seq_len(10)) {
+    expanded_strategy_root = strategy_root %>% expand_strategy(infosets_p1)
+    expanded_strategy_b = strategy_b %>% expand_strategy(infosets_p2)
+    expanded_strategy_x = strategy_x %>% expand_strategy(infosets_p2)
+    expanded_strategy_x_b = strategy_x_b %>% expand_strategy(infosets_p1)
     
-    # Compute probability of being in each node, given initial state
-    p_b = strategy_root[1,]
-    p_b_c = strategy_root[1,] * strategy_b[1,]
-    p_b_f = strategy_root[1,] * strategy_b[2,]
+    # Compute probability of each state, for each history
+    p_root = rep(1/6, 6)
+    p_b = p_root * expanded_strategy_root[1,]
+    p_b_c = p_b * expanded_strategy_b[1,]
+    p_b_f = p_b * expanded_strategy_b[2,]
     
-    # Compute EV from terminal nodes
-    ev_b = p_b_c * payouts_b_c + p_b_f * payouts_b_f
-    regrets_b = regrets_b -(rbind(p_b * payouts_b_c - ev_b, p_b * payouts_b_f - ev_b) %>% sum_regrets(infosets_p2))
+    ## From terminal nodes: b
+    # Compute EV of each state
+    ev_b = (p_b_c * payouts_b_c + p_b_f * payouts_b_f) / (p_b_c + p_b_f)
+    ev_b %<>% replace_na(0)
     
-    p_x = strategy_root[2,]
-    p_x_b = strategy_root[2,] * strategy_x[1,]
-    p_x_b_c = strategy_root[2,] * strategy_x[1,] * strategy_x_b[1,]
-    p_x_b_f = strategy_root[2,] * strategy_x[1,] * strategy_x_b[2,]
+    # Compute EV of each infoset
+    p_b_info = map_infosets(p_b, infosets_p2, sum)
+    ev_b_info = map_infosets(ev_b * p_b, infosets_p2, sum) / p_b_info
+    ev_b_c_info = map_infosets(payouts_b_c * p_b_c, infosets_p2, sum) / map_infosets(p_b_c, infosets_p2, sum)
+    ev_b_f_info = map_infosets(payouts_b_f * p_b_f, infosets_p2, sum) / map_infosets(p_b_f, infosets_p2, sum)
     
-    ev_x_b = p_x_b_c * payouts_b_c + p_x_b_f * payouts_b_f
-    regrets_x_b = regrets_x_b + (rbind(p_x_b * payouts_b_c - ev_x_b, p_x_b * payouts_b_f - ev_x_b) %>% sum_regrets(infosets_p1))
+    ev_b_info %<>% replace_na(0)
+    ev_b_c_info %<>% replace_na(0)
+    ev_b_f_info %<>% replace_na(0)
     
-    p_x_x = strategy_root[2,] * strategy_x[2,]
-    ev_x = p_x_b * ev_x_b +  p_x_x * payouts_x_x
-    regrets_x = regrets_x -(rbind(p_x * ev_x_b - ev_x, p_x * payouts_x_x - ev_x) %>% sum_regrets(infosets_p2))
+    regrets_b = regrets_b - t(cbind(ev_b_c_info - ev_b_info, ev_b_f_info - ev_b_info) * p_b_info) # Weighted instant regret
     
-    ev_root = p_b * ev_b + p_x * ev_x
-    regrets_root = regrets_root + (rbind(ev_b - ev_root, ev_x - ev_root) %>% sum_regrets(infosets_p1))
+    # Update strategy
+    strategy_b = apply(regrets_b %>% t, 1, regret_match) 
+    average_strategy_b = t((t(average_strategy_b) * total_p_b + t(strategy_b * p_b_info)) / (total_p_b + p_b_info))
+    total_p_b = total_p_b + p_b_info
+    
+    ## xx
+    p_x = p_root * expanded_strategy_root[2,]
+    p_x_b = p_x * expanded_strategy_x[1,]
+    p_x_b_c = p_x_b * expanded_strategy_x_b[1,]
+    p_x_b_f = p_x_b * expanded_strategy_x_b[2,]
+    
+    # Compute EV of each state
+    ev_x_b = (p_x_b_c * payouts_b_c + p_x_b_f * -payouts_b_f) / (p_x_b_c + p_x_b_f)
+    ev_x_b %<>% replace_na(0)
+    
+    # Compute EV of each infoset
+    p_x_b_info = map_infosets(p_x_b, infosets_p1, sum)
+    ev_x_b_info = map_infosets(ev_x_b * p_x_b, infosets_p1, sum) / p_x_b_info
+    ev_x_b_c_info = map_infosets(payouts_b_c * p_x_b_c, infosets_p1, sum) / map_infosets(p_x_b_c, infosets_p1, sum)
+    ev_x_b_f_info = map_infosets(-payouts_b_f * p_x_b_f, infosets_p1, sum) / map_infosets(p_x_b_f, infosets_p1, sum)
+    
+    ev_x_b_info %<>% replace_na(0)
+    ev_x_b_c_info %<>% replace_na(0)
+    ev_x_b_f_info %<>% replace_na(0)
+    
+    regrets_x_b = regrets_x_b + t(cbind(ev_x_b_c_info - ev_x_b_info, ev_x_b_f_info - ev_x_b_info) * p_x_b_info)
+    
+    strategy_x_b = apply(regrets_x_b %>% t, 1, regret_match)
+    average_strategy_x_b = t((t(average_strategy_x_b) * total_p_x_b + t(strategy_x_b * p_x_b_info)) / (total_p_x_b + p_x_b_info))
+    total_p_x_b = total_p_x_b + p_x_b_info
+    
+    ## x
+    p_x_x = p_x * expanded_strategy_x[2,]
+    ev_x = (p_x_x * payouts_x_x + p_x_b * ev_x_b) / (p_x_x + p_x_b)
+    ev_x %<>% replace_na(0)
+    
+    p_x_info = map_infosets(p_x, infosets_p2, sum)
+    ev_x_info = map_infosets(ev_x * p_x, infosets_p2, sum) / p_x_info
+    ev_x_b_info = map_infosets(ev_x_b * p_x_b, infosets_p2, sum) / map_infosets(p_x_b, infosets_p2, sum)
+    ev_x_x_info = map_infosets(payouts_x_x * p_x_x, infosets_p2, sum) / map_infosets(p_x_x, infosets_p2, sum)
+    
+    ev_x_info %<>% replace_na(0)
+    ev_x_b_info %<>% replace_na(0)
+    ev_x_x_info %<>% replace_na(0)
+    
+    regrets_x = regrets_x - t(cbind(ev_x_b_info - ev_x_info, ev_x_x_info - ev_x_info) * p_x_info)
+    
+    strategy_x = apply(regrets_x %>% t, 1, regret_match)
+    average_strategy_x = t((t(average_strategy_x) * total_p_x + t(strategy_x * p_x_info)) / (total_p_x + p_x_info))
+    total_p_x = total_p_x + p_x_info
+    
+    ## root
+    ev_root = (p_b * ev_b + p_x * ev_x) / (p_b + p_x)
+    ev_root %<>% replace_na(0)
+    
+    p_root_info = rep(1/3, 3)
+    ev_root_info = map_infosets(ev_root * p_root, infosets_p1, sum) / p_root_info
+    ev_b_info = map_infosets(ev_b * p_b, infosets_p1, sum) / p_b_info
+    ev_x_info = map_infosets(ev_x * p_x, infosets_p1, sum) / p_x_info
+    
+    ev_root_info %<>% replace_na(0)
+    ev_b_info %<>% replace_na(0)
+    ev_x_info %<>% replace_na(0)
+    
+    
+    regrets_root = regrets_root + t(cbind(ev_b_info - ev_root_info, ev_x_info - ev_root_info) * p_root_info)
+    
+    strategy_root = apply(regrets_root %>% t, 1, regret_match)
+    average_strategy_root = t((t(average_strategy_root) * total_p_root + t(strategy_root * p_root_info)) / (total_p_root + p_root_info))
+    total_p_root = total_p_root + p_root_info
 }

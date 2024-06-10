@@ -56,7 +56,7 @@ total_p_b = rep(1/6, 3)
 total_p_x = rep(1/6, 3)
 total_p_x_b = rep(1/12, 3)
 
-for (i in seq_len(100)) {
+for (i in seq_len(1000)) {
     expanded_strategy_root = strategy_root %>% expand_strategy(infosets_p1)
     expanded_strategy_b = strategy_b %>% expand_strategy(infosets_p2)
     expanded_strategy_x = strategy_x %>% expand_strategy(infosets_p2)
@@ -82,13 +82,16 @@ for (i in seq_len(100)) {
     ev_b_info %<>% replace_na(0)
     ev_b_c_info %<>% replace_na(0)
     ev_b_f_info %<>% replace_na(0)
-    
-    regrets_b = regrets_b - t(cbind(ev_b_c_info - ev_b_info, ev_b_f_info - ev_b_info) * p_b_info) # Weighted instant regret
-    
-    # Update strategy
-    strategy_b = apply(regrets_b %>% t, 1, regret_match) 
-    average_strategy_b = t((t(average_strategy_b) * total_p_b + t(strategy_b) * p_b_info) / (total_p_b + p_b_info))
-    total_p_b = total_p_b + p_b_info
+   
+    if (i %% 2 == 1) {
+        regrets_b = regrets_b - t(cbind(ev_b_c_info - ev_b_info, ev_b_f_info - ev_b_info) * p_b_info) # Weighted instant regret
+        regrets_b[regrets_b<0] = 0
+        
+        # Update strategy
+        strategy_b = apply(regrets_b %>% t, 1, regret_match) 
+        average_strategy_b = t((t(average_strategy_b) * total_p_b + t(strategy_b) * p_b_info) / (total_p_b + p_b_info))
+        total_p_b = total_p_b + p_b_info
+    } 
     
     ## xx
     p_x = p_root * expanded_strategy_root[2,]
@@ -110,11 +113,14 @@ for (i in seq_len(100)) {
     ev_x_b_c_info %<>% replace_na(0)
     ev_x_b_f_info %<>% replace_na(0)
     
-    regrets_x_b = regrets_x_b + t(cbind(ev_x_b_c_info - ev_x_b_info, ev_x_b_f_info - ev_x_b_info) * p_x_b_info)
-    
-    strategy_x_b = apply(regrets_x_b %>% t, 1, regret_match)
-    average_strategy_x_b = t((t(average_strategy_x_b) * total_p_x_b + t(strategy_x_b) * p_x_b_info) / (total_p_x_b + p_x_b_info))
-    total_p_x_b = total_p_x_b + p_x_b_info
+    if (i %% 2 == 0) {
+        regrets_x_b = regrets_x_b + t(cbind(ev_x_b_c_info - ev_x_b_info, ev_x_b_f_info - ev_x_b_info) * p_x_b_info)
+        regrets_x_b[regrets_x_b<0] = 0
+        
+        strategy_x_b = apply(regrets_x_b %>% t, 1, regret_match)
+        average_strategy_x_b = t((t(average_strategy_x_b) * total_p_x_b + t(strategy_x_b) * p_x_b_info) / (total_p_x_b + p_x_b_info))
+        total_p_x_b = total_p_x_b + p_x_b_info
+    }
     
     ## x
     p_x_x = p_x * expanded_strategy_x[2,]
@@ -130,11 +136,14 @@ for (i in seq_len(100)) {
     ev_x_b_info %<>% replace_na(0)
     ev_x_x_info %<>% replace_na(0)
     
-    regrets_x = regrets_x - t(cbind(ev_x_b_info - ev_x_info, ev_x_x_info - ev_x_info) * p_x_info)
-    
-    strategy_x = apply(regrets_x %>% t, 1, regret_match)
-    average_strategy_x = t((t(average_strategy_x) * total_p_x + t(strategy_x) * p_x_info) / (total_p_x + p_x_info))
-    total_p_x = total_p_x + p_x_info
+    if (i %% 2 == 1) {
+        regrets_x = regrets_x - t(cbind(ev_x_b_info - ev_x_info, ev_x_x_info - ev_x_info) * p_x_info)
+        regrets_x[regrets_x<0] = 0
+        
+        strategy_x = apply(regrets_x %>% t, 1, regret_match)
+        average_strategy_x = t((t(average_strategy_x) * total_p_x + t(strategy_x) * p_x_info) / (total_p_x + p_x_info))
+        total_p_x = total_p_x + p_x_info
+    }
     
     ## root
     ev_root = (p_b * ev_b + p_x * ev_x) / (p_b + p_x)
@@ -142,17 +151,19 @@ for (i in seq_len(100)) {
     
     p_root_info = map_infosets(p_root, infosets_p1, sum)
     ev_root_info = map_infosets(ev_root * p_root, infosets_p1, sum) / p_root_info
-    ev_b_info = map_infosets(ev_b * p_b, infosets_p1, sum) / p_root_info
-    ev_x_info = map_infosets(ev_x * p_x, infosets_p1, sum) / p_root_info
+    ev_b_info = map_infosets(ev_b * p_root, infosets_p1, sum) / p_root_info
+    ev_x_info = map_infosets(ev_x * p_root, infosets_p1, sum) / p_root_info
     
     ev_root_info %<>% replace_na(0)
     ev_b_info %<>% replace_na(0)
     ev_x_info %<>% replace_na(0)
     
-    
-    regrets_root = regrets_root + t(cbind(ev_b_info - ev_root_info, ev_x_info - ev_root_info) * p_root_info)
-    
-    strategy_root = apply(regrets_root %>% t, 1, regret_match)
-    average_strategy_root = t((t(average_strategy_root) * total_p_root + t(strategy_root) * p_root_info) / (total_p_root + p_root_info))
-    total_p_root = total_p_root + p_root_info
+    if (i %% 2 == 0) {
+        regrets_root = regrets_root + t(cbind(ev_b_info - ev_root_info, ev_x_info - ev_root_info) * p_root_info)
+        regrets_root[regrets_root<0] = 0
+        
+        strategy_root = apply(regrets_root %>% t, 1, regret_match)
+        average_strategy_root = t((t(average_strategy_root) * total_p_root + t(strategy_root) * p_root_info) / (total_p_root + p_root_info))
+        total_p_root = total_p_root + p_root_info
+    }
 }

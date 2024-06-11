@@ -18,7 +18,8 @@ payouts_b_c = c(2, -2, 2, -2, 2, -2)
 payouts_b_f = c(1, 1, 1, 1, 1, 1)
 payouts_x_x = c(1, -1, 1, -1, 1, -1)
 
-expand_strategy = function(strategy, infoset) {
+expand_strategy = function(strategy, infoset, epsilon=0) {
+    strategy[strategy==0] = epsilon
     result = array(dim=c(dim(strategy)[1], length(states)))
     for (j in seq_along(infoset)) {
         result[,infoset[[j]]] = strategy[,j]
@@ -68,19 +69,14 @@ total_p_b = rep(1/6, 3)
 total_p_x = rep(1/6, 3)
 total_p_x_b = rep(1/12, 3)
 
-epsilon = 1e-7
-# epsilon = 0
+epsilon = 0
+epsilon_expand = 1e-6
+
 for (i in seq_len(1e3)) {
-    # if (i < 1e4) {
-    #     epsilon = 1e-7
-    # } else {
-    #     epsilon = 0
-    # }
-    
-    expanded_strategy_root = strategy_root %>% expand_strategy(infosets_p1)
-    expanded_strategy_b = strategy_b %>% expand_strategy(infosets_p2)
-    expanded_strategy_x = strategy_x %>% expand_strategy(infosets_p2)
-    expanded_strategy_x_b = strategy_x_b %>% expand_strategy(infosets_p1)
+    expanded_strategy_root = strategy_root %>% expand_strategy(infosets_p1, epsilon_expand)
+    expanded_strategy_b = strategy_b %>% expand_strategy(infosets_p2, epsilon_expand)
+    expanded_strategy_x = strategy_x %>% expand_strategy(infosets_p2, epsilon_expand)
+    expanded_strategy_x_b = strategy_x_b %>% expand_strategy(infosets_p1, epsilon_expand)
     
     # Compute probability of each state, for each history
     p_root = rep(1/6, 6)

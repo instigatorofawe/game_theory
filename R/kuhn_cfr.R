@@ -51,12 +51,30 @@ average_strategy_b = strategy_b
 average_strategy_x = strategy_x
 average_strategy_x_b = strategy_x_b
 
+colnames(average_strategy_root) = c("J", "Q", "K")
+rownames(average_strategy_root) = c("Bet", "Check")
+
+colnames(average_strategy_b) = c("J", "Q", "K")
+rownames(average_strategy_b) = c("Call", "Fold")
+
+colnames(average_strategy_x) = c("J", "Q", "K")
+rownames(average_strategy_x) = c("Bet", "Check")
+
+colnames(average_strategy_x_b) = c("J", "Q", "K")
+rownames(average_strategy_x_b) = c("Call", "Fold")
+
 total_p_root = rep(1/3, 3)
 total_p_b = rep(1/6, 3)
 total_p_x = rep(1/6, 3)
 total_p_x_b = rep(1/12, 3)
 
 for (i in seq_len(1000)) {
+    if (i < 3) {
+        epsilon = 1e-3
+    } else {
+        epsilon = 0
+    }
+    
     expanded_strategy_root = strategy_root %>% expand_strategy(infosets_p1)
     expanded_strategy_b = strategy_b %>% expand_strategy(infosets_p2)
     expanded_strategy_x = strategy_x %>% expand_strategy(infosets_p2)
@@ -88,7 +106,7 @@ for (i in seq_len(1000)) {
         regrets_b[regrets_b<0] = 0
         
         # Update strategy
-        strategy_b = apply(regrets_b %>% t, 1, regret_match) 
+        strategy_b = apply(regrets_b %>% t, 1, function(x) regret_match(x, epsilon)) 
         average_strategy_b = t((t(average_strategy_b) * total_p_b + t(strategy_b) * p_b_info) / (total_p_b + p_b_info))
         total_p_b = total_p_b + p_b_info
     } 
@@ -117,7 +135,7 @@ for (i in seq_len(1000)) {
         regrets_x_b = regrets_x_b + t(cbind(ev_x_b_c_info - ev_x_b_info, ev_x_b_f_info - ev_x_b_info) * p_x_b_info)
         regrets_x_b[regrets_x_b<0] = 0
         
-        strategy_x_b = apply(regrets_x_b %>% t, 1, regret_match)
+        strategy_x_b = apply(regrets_x_b %>% t, 1, function(x) regret_match(x, epsilon))
         average_strategy_x_b = t((t(average_strategy_x_b) * total_p_x_b + t(strategy_x_b) * p_x_b_info) / (total_p_x_b + p_x_b_info))
         total_p_x_b = total_p_x_b + p_x_b_info
     }
@@ -140,7 +158,7 @@ for (i in seq_len(1000)) {
         regrets_x = regrets_x - t(cbind(ev_x_b_info - ev_x_info, ev_x_x_info - ev_x_info) * p_x_info)
         regrets_x[regrets_x<0] = 0
         
-        strategy_x = apply(regrets_x %>% t, 1, regret_match)
+        strategy_x = apply(regrets_x %>% t, 1, function(x) regret_match(x, epsilon))
         average_strategy_x = t((t(average_strategy_x) * total_p_x + t(strategy_x) * p_x_info) / (total_p_x + p_x_info))
         total_p_x = total_p_x + p_x_info
     }
@@ -162,7 +180,7 @@ for (i in seq_len(1000)) {
         regrets_root = regrets_root + t(cbind(ev_b_info - ev_root_info, ev_x_info - ev_root_info) * p_root_info)
         regrets_root[regrets_root<0] = 0
         
-        strategy_root = apply(regrets_root %>% t, 1, regret_match)
+        strategy_root = apply(regrets_root %>% t, 1, function(x) regret_match(x, epsilon))
         average_strategy_root = t((t(average_strategy_root) * total_p_root + t(strategy_root) * p_root_info) / (total_p_root + p_root_info))
         total_p_root = total_p_root + p_root_info
     }

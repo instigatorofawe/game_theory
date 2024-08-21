@@ -72,7 +72,7 @@ total_p_x_b = rep(1/12, 3)
 epsilon = 0
 epsilon_expand = 1e-6
 
-for (i in seq_len(1e3)) {
+for (i in seq_len(1e4)) {
     expanded_strategy_root = strategy_root %>% expand_strategy(infosets_p1, epsilon_expand)
     expanded_strategy_b = strategy_b %>% expand_strategy(infosets_p2, epsilon_expand)
     expanded_strategy_x = strategy_x %>% expand_strategy(infosets_p2, epsilon_expand)
@@ -86,8 +86,8 @@ for (i in seq_len(1e3)) {
     
     ## From terminal nodes: b
     # Compute EV of each state
-    ev_b = (p_b_c * payouts_b_c + p_b_f * payouts_b_f) / (p_b_c + p_b_f)
-    ev_b %<>% replace_na(0)
+    ev_b = expanded_strategy_b[1,] * payouts_b_c + expanded_strategy_b[2,] * payouts_b_f
+    # ev_b %<>% replace_na(0)
     
     # Compute EV of each infoset
     p_b_info = map_infosets(p_b, infosets_p2, sum)

@@ -1,5 +1,6 @@
+library(tictoc)
 source("R/regret_match.R")
-# Infosets are K, Q, J
+
 root_regrets = array(0, dim=c(2, 3))
 root_strategies = array(1/2, dim=c(2, 3))
 root_avg_strategies = array(1/2, dim=c(2, 3))
@@ -20,19 +21,32 @@ x_b_strategies = array(1/2, dim=c(2, 3))
 x_b_avg_strategies = array(1/2, dim=c(2, 3))
 x_b_iter_count = rep(1, 3)
 
+colnames(root_avg_strategies) = c("J", "Q", "K")
+rownames(root_avg_strategies) = c("Bet", "Check")
+
+colnames(b_avg_strategies) = c("J", "Q", "K")
+rownames(b_avg_strategies) = c("Call", "Fold")
+
+colnames(x_avg_strategies) = c("J", "Q", "K")
+rownames(x_avg_strategies) = c("Bet", "Check")
+
+colnames(x_b_avg_strategies) = c("J", "Q", "K")
+rownames(x_b_avg_strategies) = c("Call", "Fold")
+
 set.seed(123456789)
 
 b_f_payout = 1
 x_b_f_payout = -1
 
+tic()
 for (iteration in seq_len(100000)) {
     # Generate external sample for OOP
     cards = sample(seq_len(3), 2, replace=F)
     
     # Compute value of terminal nodes
-    x_x_payout = (cards[1] < cards[2]) * 2 - 1
-    b_c_payout = (cards[1] < cards[2]) * 4 - 2
-    x_b_c_payout = (cards[1] < cards[2]) * 4 - 2
+    x_x_payout = (cards[1] > cards[2]) * 2 - 1
+    b_c_payout = (cards[1] > cards[2]) * 4 - 2
+    x_b_c_payout = (cards[1] > cards[2]) * 4 - 2
     
     # Compute IP actions
     x_action = 2 - (runif(1) < x_strategies[1,cards[2]]) * 1
@@ -64,9 +78,9 @@ for (iteration in seq_len(100000)) {
     # Generate external sample for IP
     cards = sample(seq_len(3), 2, replace=F)
     
-    x_x_payout = (cards[1] < cards[2]) * 2 - 1
-    b_c_payout = (cards[1] < cards[2]) * 4 - 2
-    x_b_c_payout = (cards[1] < cards[2]) * 4 - 2
+    x_x_payout = (cards[1] > cards[2]) * 2 - 1
+    b_c_payout = (cards[1] > cards[2]) * 4 - 2
+    x_b_c_payout = (cards[1] > cards[2]) * 4 - 2
     
     # Compute OOP actions
     root_action = 2 - (runif(1) < root_strategies[1,cards[1]]) * 1
@@ -91,3 +105,9 @@ for (iteration in seq_len(100000)) {
     # Update IP strategy
     
 }
+toc()
+
+print(root_avg_strategies)
+print(b_avg_strategies)
+print(x_avg_strategies)
+print(x_b_avg_strategies)

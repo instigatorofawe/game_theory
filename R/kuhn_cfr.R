@@ -1,5 +1,6 @@
 rm(list=ls())
 
+library(tictoc)
 library(tidyverse)
 library(magrittr)
 
@@ -72,6 +73,7 @@ total_p_x_b = rep(1/12, 3)
 epsilon = 0
 epsilon_expand = 1e-6
 
+tic()
 for (i in seq_len(1e4)) {
     expanded_strategy_root = strategy_root %>% expand_strategy(infosets_p1, epsilon_expand)
     expanded_strategy_b = strategy_b %>% expand_strategy(infosets_p2, epsilon_expand)
@@ -191,6 +193,7 @@ for (i in seq_len(1e4)) {
         total_p_root = total_p_root * i / (i+1)
     }
 }
+toc()
 
 print(average_strategy_root)
 print(average_strategy_b)
